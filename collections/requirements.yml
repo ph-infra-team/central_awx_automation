@@ -1,0 +1,7 @@
+---
+collections:
+  - name: awx.awx
+  - name: git+http://gitlab.midhtech.local/infra_team/awx_team.config_as_code_template.git
+    type: git
+    version: main
+

@@ -1,0 +1,52 @@
+---
+- name: Remove AWX resources owned by an app declaration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  collections:
+    - awx.awx
+
+  vars:
+    CONTROLLER_HOST: "{{ controller_host | default(lookup('env', 'CONTROLLER_HOST'), true) | default(lookup('env', 'AWX_HOST'), true) }}"
+    CONTROLLER_USERNAME: "{{ controller_username | default(lookup('env', 'CONTROLLER_USERNAME'), true) | default(lookup('env', 'AWX_USERNAME'), true) }}"
+    CONTROLLER_PASSWORD: "{{ controller_password | default(lookup('env', 'CONTROLLER_PASSWORD'), true) | default(lookup('env', 'AWX_PASSWORD'), true) }}"
+    CONTROLLER_VERIFY_SSL: "{{ controller_verify_ssl | default(lookup('env', 'CONTROLLER_VERIFY_SSL'), true) | default(false, true) | bool }}"
+    controller_projects_all: "{{ controller_projects_all | default([]) }}"
+    controller_job_templates_all: "{{ controller_job_templates_all | default([]) }}"
+
+  pre_tasks:
+    - name: Require explicit cleanup approval
+      ansible.builtin.assert:
+        that:
+          - awx_cleanup_enabled | default(false) | bool
+          - change_ticket_id is defined
+          - change_ticket_id | length > 0
+        fail_msg: "Cleanup requires awx_cleanup_enabled=true and change_ticket_id."
+
+  tasks:
+    - name: Delete declared job templates first
+      awx.awx.job_template:
+        name: "{{ template_item.name }}"
+        organization: "{{ template_item.organization | default(omit) }}"
+        state: absent
+        controller_host: "{{ CONTROLLER_HOST }}"
+        controller_username: "{{ CONTROLLER_USERNAME }}"
+        controller_password: "{{ CONTROLLER_PASSWORD }}"
+        validate_certs: "{{ CONTROLLER_VERIFY_SSL }}"
+      loop: "{{ controller_job_templates_all }}"
+      loop_control:
+        loop_var: template_item
+
+    - name: Delete declared projects after job templates
+      awx.awx.project:
+        name: "{{ project_item.name }}"
+        organization: "{{ project_item.organization }}"
+        state: absent
+        controller_host: "{{ CONTROLLER_HOST }}"
+        controller_username: "{{ CONTROLLER_USERNAME }}"
+        controller_password: "{{ CONTROLLER_PASSWORD }}"
+        validate_certs: "{{ CONTROLLER_VERIFY_SSL }}"
+      loop: "{{ controller_projects_all }}"
+      loop_control:
+        loop_var: project_item

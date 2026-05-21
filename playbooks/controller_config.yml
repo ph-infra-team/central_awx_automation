@@ -1,0 +1,74 @@
+---
+- name: Configure AWX resources from approved app variables
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  collections:
+    - awx.awx
+    - awx_team.config_as_code_template
+
+  vars:
+    CONTROLLER_HOST: "{{ controller_host | default(lookup('env', 'CONTROLLER_HOST'), true) | default(lookup('env', 'AWX_HOST'), true) }}"
+    CONTROLLER_USERNAME: "{{ controller_username | default(lookup('env', 'CONTROLLER_USERNAME'), true) | default(lookup('env', 'AWX_USERNAME'), true) }}"
+    CONTROLLER_PASSWORD: "{{ controller_password | default(lookup('env', 'CONTROLLER_PASSWORD'), true) | default(lookup('env', 'AWX_PASSWORD'), true) }}"
+    CONTROLLER_VERIFY_SSL: "{{ controller_verify_ssl | default(lookup('env', 'CONTROLLER_VERIFY_SSL'), true) | default(false, true) | bool }}"
+    controller_notifications_all: "{{ controller_notifications_all | default([]) }}"
+    controller_credentials_all: "{{ controller_credentials_all | default([]) }}"
+    controller_projects_all: "{{ controller_projects_all | default([]) }}"
+    controller_inventories_all: "{{ controller_inventories_all | default([]) }}"
+    controller_inventory_sources_all: "{{ controller_inventory_sources_all | default([]) }}"
+    controller_schedules_all: "{{ controller_schedules_all | default([]) }}"
+    controller_job_templates_all: "{{ controller_job_templates_all | default([]) }}"
+    controller_workflow_job_templates_all: "{{ controller_workflow_job_templates_all | default([]) }}"
+
+  pre_tasks:
+    - name: Validate controller connection variables
+      ansible.builtin.assert:
+        that:
+          - CONTROLLER_HOST | length > 0
+          - CONTROLLER_USERNAME | length > 0
+          - CONTROLLER_PASSWORD | length > 0
+        fail_msg: "Controller credentials must be supplied by the trusted AWX job template credential."
+
+    - name: Validate app ownership metadata
+      ansible.builtin.assert:
+        that:
+          - awx_app_name is defined
+          - awx_app_name | length > 0
+          - awx_owner_repo is defined
+          - awx_owner_repo | length > 0
+        fail_msg: "awx_app_name and awx_owner_repo are required for ownership and cleanup."
+
+  tasks:
+    - name: Configure notification templates when declared
+      ansible.builtin.import_role:
+        name: awx_notification_template
+
+    - name: Configure credentials when declared
+      ansible.builtin.import_role:
+        name: awx_credential
+
+    - name: Configure projects
+      ansible.builtin.import_role:
+        name: awx_project
+
+    - name: Configure inventories when declared
+      ansible.builtin.import_role:
+        name: awx_inventory
+
+    - name: Configure inventory sources when declared
+      ansible.builtin.import_role:
+        name: awx_inventory_source
+
+    - name: Configure job templates
+      ansible.builtin.import_role:
+        name: awx_job_template
+
+    - name: Configure schedules when declared
+      ansible.builtin.import_role:
+        name: awx_schedule
+
+    - name: Configure workflow job templates when declared
+      ansible.builtin.import_role:
+        name: awx_workflow_job_templates

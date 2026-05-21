@@ -1,0 +1,37 @@
+############################################
+# Central AWX Automation Pipeline
+# Repo: infra_team/central_awx_automation
+#
+# Purpose:
+# - Validates the trusted AWX config-as-code wrapper.
+# - This repo is consumed by AWX as the central configure project.
+# - Application repos launch central AWX job templates backed by this repo.
+############################################
+
+stages:
+  - validate
+
+validate:
+  stage: validate
+  image: registry.midhtech.local:5050/infra_team/platform-images/ansible-awx:latest
+  tags:
+    - platform
+  script:
+    - export ANSIBLE_CONFIG="${CI_PROJECT_DIR}/ansible.cfg"
+    - ansible --version
+    - |
+      if [ -n "$COLLECTION_REPOSITORY_TOKEN" ]; then
+        echo "Using masked COLLECTION_REPOSITORY_TOKEN for internal collection access."
+        git config --global \
+          url."http://oauth2:${COLLECTION_REPOSITORY_TOKEN}@gitlab.midhtech.local/".insteadOf \
+          "http://gitlab.midhtech.local/"
+      else
+        echo "Using CI_JOB_TOKEN for internal collection access."
+        echo "The awx_team.config_as_code_template repo must allow this project in Job Token Permissions."
+        git config --global \
+          url."http://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.midhtech.local/".insteadOf \
+          "http://gitlab.midhtech.local/"
+      fi
+    - ansible-galaxy collection install -r collections/requirements.yml --force
+    - ansible-playbook -i inventory/hosts playbooks/controller_config.yml --syntax-check
+    - ansible-playbook -i inventory/hosts playbooks/controller_cleanup.yml --syntax-check
